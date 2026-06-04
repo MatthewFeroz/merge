@@ -20,6 +20,14 @@ except ImportError:  # pragma: no cover - friendly nudge if rich isn't installed
     raise
 
 
+# Windows consoles often default to cp1252, which can't encode emoji. Force UTF-8.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass
+
+
 DEFAULT_BASE_URL = "https://api-gateway.merge.dev/v1"
 DEFAULT_MODEL = "openai/gpt-4o"
 SYSTEM_PROMPT = "You are a concise, practical assistant."
