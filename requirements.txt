@@ -1,1 +1,3 @@
 merge-gateway-sdk
+httpx
+rich
