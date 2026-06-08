@@ -7,6 +7,21 @@ Install the SDK:
 pip install -r requirements.txt
 ```
 
+### Web UI — model arena
+
+A dark, terminal-style chat page. Roll a handful of models, send one prompt,
+and compare each model's answer side by side — every output box has a copy
+button in its top-right corner. Great for drafting LinkedIn hooks.
+
+```powershell
+$env:MERGE_API_KEY="your_api_key_here"   # or a .env file (see below)
+python .\server.py                        # -> http://127.0.0.1:8000
+```
+
+The key stays server-side; the browser only talks to the local server.
+
+### CLI
+
 Set your API key:
 
 ```powershell

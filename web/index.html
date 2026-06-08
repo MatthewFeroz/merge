@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>merge · model arena</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg:      #0b0b0d;
+    --panel:   #131317;
+    --panel-2: #17171c;
+    --border:  #26262d;
+    --border-2:#34343d;
+    --text:    #e7e7ea;
+    --muted:   #8b8b94;
+    --faint:   #5a5a63;
+    --accent:  #f0a85a;   /* terminal amber */
+    --accent-d:#b97b34;
+    --ok:      #7ee787;
+    --radius:  10px;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(900px 500px at 85% -10%, rgba(240,168,90,.07), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 28px 24px 64px; }
+
+  /* ---- header ---- */
+  header {
+    display: flex; align-items: center; gap: 14px;
+    padding-bottom: 18px; border-bottom: 1px solid var(--border);
+  }
+  .mark { font-weight: 700; letter-spacing: .5px; font-size: 15px; }
+  .mark b { color: var(--accent); }
+  .caret { display:inline-block; width:8px; height:15px; background:var(--accent);
+           margin-left:2px; transform:translateY(2px); animation:blink 1.1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .dot { width:7px; height:7px; border-radius:50%; background:var(--faint); }
+  .dot.live { background:var(--ok); box-shadow:0 0 8px rgba(126,231,135,.6); }
+  .status { color: var(--muted); font-size: 12px; }
+  header .spacer { flex: 1; }
+
+  /* ---- controls ---- */
+  .controls { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:20px 0 14px; }
+  .lbl { color: var(--faint); font-size:12px; text-transform:uppercase; letter-spacing:1px; }
+  .num {
+    width:54px; background:var(--panel); color:var(--text); border:1px solid var(--border);
+    border-radius:8px; padding:7px 8px; font:inherit; text-align:center;
+  }
+  .num:focus { outline:none; border-color:var(--accent-d); }
+  button {
+    font:inherit; cursor:pointer; border-radius:8px; border:1px solid var(--border-2);
+    background:var(--panel); color:var(--text); padding:8px 14px; transition:.15s ease;
+  }
+  button:hover { border-color:var(--accent-d); color:var(--accent); }
+  button:active { transform:translateY(1px); }
+  button:disabled { opacity:.45; cursor:not-allowed; transform:none; }
+  .roll { font-weight:500; }
+
+  .chips { display:flex; gap:8px; flex-wrap:wrap; min-height:30px; align-items:center; }
+  .chip {
+    display:inline-flex; align-items:center; gap:7px; padding:5px 11px; font-size:12px;
+    background:var(--panel-2); border:1px solid var(--border); border-radius:999px; color:var(--muted);
+  }
+  .chip i { width:6px; height:6px; border-radius:50%; background:var(--accent); font-style:normal; }
+
+  /* ---- prompt box ---- */
+  .prompt {
+    margin-top:8px; background:var(--panel); border:1px solid var(--border);
+    border-radius:var(--radius); padding:14px 16px; transition:border-color .15s ease;
+  }
+  .prompt:focus-within { border-color:var(--accent-d); }
+  .prompt textarea {
+    width:100%; resize:none; border:0; background:transparent; color:var(--text);
+    font:inherit; line-height:1.6; outline:none; min-height:26px; max-height:220px;
+  }
+  .prompt textarea::placeholder { color:var(--faint); }
+  .promptbar { display:flex; align-items:center; justify-content:space-between; margin-top:10px; }
+  .hint { color:var(--faint); font-size:11.5px; }
+  .send { font-weight:700; }
+  .send:not(:disabled) { border-color:var(--accent-d); color:var(--accent); }
+
+  /* ---- results ---- */
+  .grid { display:grid; gap:16px; margin-top:26px;
+          grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); }
+  .card {
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+    overflow:hidden; display:flex; flex-direction:column; animation:rise .35s ease both;
+  }
+  @keyframes rise { from { opacity:0; transform:translateY(10px); } }
+  .card-head {
+    display:flex; align-items:center; gap:10px; padding:10px 12px;
+    border-bottom:1px solid var(--border); background:var(--panel-2);
+  }
+  .card-head .name { font-weight:500; font-size:13px; }
+  .card-head .id { color:var(--faint); font-size:11px; }
+  .card-head .grow { flex:1; }
+  .copy {
+    padding:5px 10px; font-size:11.5px; border-radius:7px;
+    border:1px solid var(--border-2); background:transparent; color:var(--muted);
+  }
+  .copy:hover { color:var(--accent); border-color:var(--accent-d); }
+  .copy.done { color:var(--ok); border-color:var(--ok); }
+  .card-body {
+    padding:14px 16px; white-space:pre-wrap; word-break:break-word;
+    font-size:13px; color:var(--text); flex:1; min-height:44px;
+    max-height:340px; overflow-y:auto;
+    scrollbar-width:thin; scrollbar-color:var(--border-2) transparent;
+  }
+  .card-body::-webkit-scrollbar { width:9px; }
+  .card-body::-webkit-scrollbar-track { background:transparent; }
+  .card-body::-webkit-scrollbar-thumb {
+    background:var(--border-2); border-radius:99px;
+    border:2px solid var(--panel); background-clip:padding-box;
+  }
+  .card-body::-webkit-scrollbar-thumb:hover { background:var(--accent-d); background-clip:padding-box; }
+  .card-body.err { color:#ff8c7a; }
+  .loading { color:var(--muted); }
+  .loading .blk { display:inline-block; width:8px; height:14px; background:var(--accent);
+                  transform:translateY(2px); animation:blink 1s steps(1) infinite; }
+
+  .up {
+    padding:5px 10px; font-size:11.5px; border-radius:7px;
+    border:1px solid var(--border-2); background:transparent; color:var(--muted);
+  }
+  .up:hover { color:var(--accent); border-color:var(--accent-d); }
+  .up.on { color:#0b0b0d; background:var(--accent); border-color:var(--accent); font-weight:700; }
+
+  /* ---- leaderboard ---- */
+  .board-btn { padding:6px 12px; font-size:12px; }
+  .board {
+    margin-top:16px; background:var(--panel); border:1px solid var(--border);
+    border-radius:var(--radius); padding:16px 18px; animation:rise .25s ease both;
+  }
+  .board h3 { margin:0 0 12px; font-size:12px; letter-spacing:1px; text-transform:uppercase;
+              color:var(--faint); font-weight:500; display:flex; align-items:center; }
+  .board h3 .reset { margin-left:auto; font-size:11px; cursor:pointer; color:var(--faint);
+                     text-transform:none; letter-spacing:0; }
+  .board h3 .reset:hover { color:#ff8c7a; }
+  .brow { display:flex; align-items:center; gap:12px; padding:7px 0; }
+  .brow .rank { color:var(--faint); width:22px; }
+  .brow .bname { width:190px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .brow .track { flex:1; height:8px; background:var(--panel-2); border-radius:99px; overflow:hidden; }
+  .brow .fill { height:100%; background:var(--accent); border-radius:99px; transition:width .4s ease; }
+  .brow .v { width:34px; text-align:right; color:var(--muted); font-size:12px; }
+  .board .none { color:var(--faint); font-size:12px; }
+
+  /* ---- saved prompts ---- */
+  .prow { display:flex; align-items:flex-start; gap:10px; padding:9px 0; border-top:1px solid var(--border); }
+  .prow:first-of-type { border-top:0; }
+  .prow .ptext { flex:1; cursor:pointer; color:var(--text); font-size:13px; line-height:1.5;
+                 white-space:pre-wrap; word-break:break-word; }
+  .prow .ptext:hover { color:var(--accent); }
+  .prow .del { cursor:pointer; color:var(--faint); font-size:15px; line-height:1; padding:2px 4px; }
+  .prow .del:hover { color:#ff8c7a; }
+  .save-btn { font-size:12px; padding:8px 12px; }
+  .save-btn.done { color:var(--ok); border-color:var(--ok); }
+
+  /* ---- empty state ---- */
+  .empty { margin-top:42px; color:var(--faint); font-size:13px; text-align:center; }
+  .empty pre { color:var(--border-2); line-height:1.3; margin:0 0 16px; user-select:none; }
+  .empty b { color:var(--muted); font-weight:400; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <span class="mark"><b>merge</b> model arena<span class="caret"></span></span>
+      <span class="spacer"></span>
+      <button class="board-btn" id="promptsBtn">📌 prompts</button>
+      <button class="board-btn" id="boardBtn">🏆 board</button>
+      <span class="dot" id="dot"></span>
+      <span class="status" id="status">connecting…</span>
+    </header>
+
+    <div class="board" id="prompts" hidden></div>
+    <div class="board" id="board" hidden></div>
+
+    <div class="controls">
+      <span class="lbl">models</span>
+      <input class="num" id="count" type="number" min="1" max="6" value="3" />
+      <button class="roll" id="roll">↻ roll</button>
+      <div class="chips" id="chips"></div>
+    </div>
+
+    <div class="prompt">
+      <textarea id="input" rows="1"
+        placeholder="Write a scroll-stopping LinkedIn hook about shipping your first AI feature…"></textarea>
+      <div class="promptbar">
+        <span class="hint">enter to send · shift+enter for newline</span>
+        <span style="display:flex; gap:8px;">
+          <button class="save-btn" id="save" disabled>💾 save</button>
+          <button class="send" id="send" disabled>send →</button>
+        </span>
+      </div>
+    </div>
+
+    <div class="grid" id="grid"></div>
+
+    <div class="empty" id="empty">
+<pre>   ____ ____ ____ ____ ____
+  ||r |||o |||l |||l |||  ||
+  ||__|||__|||__|||__|||__||
+  |/__\|/__\|/__\|/__\|/__\|</pre>
+      <b>roll a few models, type a prompt, and compare hooks side by side.</b>
+    </div>
+  </div>
+
+<script>
+const SYSTEM = "You are a concise, punchy copywriter. Write scroll-stopping, authentic LinkedIn hooks. No hashtags unless asked. No emojis unless asked.";
+let CATALOG = [];          // [{id, name}]
+let inPlay = [];           // [{id, name}]
+
+const LB_KEY = "merge.arena.leaderboard";
+let votes = loadVotes();   // { id: {name, votes} }
+
+const $ = (id) => document.getElementById(id);
+const dot = $("dot"), status = $("status"), chips = $("chips"),
+      input = $("input"), send = $("send"), grid = $("grid"), empty = $("empty"),
+      board = $("board"), boardBtn = $("boardBtn"),
+      promptsPanel = $("prompts"), promptsBtn = $("promptsBtn"), save = $("save");
+
+/* ---- leaderboard (persisted in localStorage) ---- */
+function loadVotes() {
+  try { return JSON.parse(localStorage.getItem(LB_KEY)) || {}; }
+  catch { return {}; }
+}
+function saveVotes() { localStorage.setItem(LB_KEY, JSON.stringify(votes)); }
+
+function addVote(id, name, delta) {
+  const row = votes[id] || (votes[id] = { name, votes: 0 });
+  row.name = name;
+  row.votes = Math.max(0, row.votes + delta);
+  if (row.votes === 0) delete votes[id];
+  saveVotes();
+  if (!board.hidden) renderBoard();
+}
+
+function renderBoard() {
+  const rows = Object.entries(votes).sort((a, b) => b[1].votes - a[1].votes);
+  const max = rows.length ? rows[0][1].votes : 1;
+  const total = rows.reduce((s, [, r]) => s + r.votes, 0);
+  let html = `<h3>leaderboard · ${total} like${total === 1 ? "" : "s"}` +
+             `<span class="reset" id="lbReset">reset</span></h3>`;
+  if (!rows.length) {
+    html += `<div class="none">No likes yet — 👍 the hooks you'd actually post.</div>`;
+  } else {
+    rows.forEach(([, r], i) => {
+      html += `<div class="brow"><span class="rank">${i + 1}</span>` +
+        `<span class="bname">${r.name}</span>` +
+        `<span class="track"><span class="fill" style="width:${(r.votes / max) * 100}%"></span></span>` +
+        `<span class="v">${r.votes}</span></div>`;
+    });
+  }
+  board.innerHTML = html;
+  $("lbReset").addEventListener("click", () => {
+    if (confirm("Clear the leaderboard?")) { votes = {}; saveVotes(); renderBoard(); }
+  });
+}
+
+boardBtn.addEventListener("click", () => {
+  board.hidden = !board.hidden;
+  if (!board.hidden) { renderBoard(); promptsPanel.hidden = true; }
+});
+
+/* ---- saved prompts (persisted in localStorage) ---- */
+const PROMPTS_KEY = "merge.arena.prompts";
+let prompts = loadPrompts();   // [string], newest first
+
+function loadPrompts() {
+  try { return JSON.parse(localStorage.getItem(PROMPTS_KEY)) || []; }
+  catch { return []; }
+}
+function savePrompts() { localStorage.setItem(PROMPTS_KEY, JSON.stringify(prompts)); }
+
+function addPrompt(text) {
+  text = text.trim();
+  if (!text) return;
+  prompts = [text, ...prompts.filter(p => p !== text)];   // dedupe, newest first
+  savePrompts();
+  if (!promptsPanel.hidden) renderPrompts();
+}
+
+function renderPrompts() {
+  let html = `<h3>saved prompts · ${prompts.length}` +
+             (prompts.length ? `<span class="reset" id="pReset">clear all</span>` : ``) + `</h3>`;
+  if (!prompts.length) {
+    html += `<div class="none">No saved prompts yet — write one and hit 💾 save.</div>`;
+  } else {
+    prompts.forEach((_, i) => {
+      html += `<div class="prow"><span class="ptext" data-i="${i}"></span>` +
+              `<span class="del" data-i="${i}" title="delete">×</span></div>`;
+    });
+  }
+  promptsPanel.innerHTML = html;
+  // textContent (not innerHTML) so saved prompt text can't inject markup
+  promptsPanel.querySelectorAll(".ptext").forEach(el => {
+    el.textContent = prompts[+el.dataset.i];
+    el.addEventListener("click", () => {
+      input.value = prompts[+el.dataset.i];
+      autosize();
+      send.disabled = save.disabled = false;
+      promptsPanel.hidden = true;
+      input.focus();
+    });
+  });
+  promptsPanel.querySelectorAll(".del").forEach(el => {
+    el.addEventListener("click", () => { prompts.splice(+el.dataset.i, 1); savePrompts(); renderPrompts(); });
+  });
+  const clr = $("pReset");
+  if (clr) clr.addEventListener("click", () => {
+    if (confirm("Clear all saved prompts?")) { prompts = []; savePrompts(); renderPrompts(); }
+  });
+}
+
+promptsBtn.addEventListener("click", () => {
+  promptsPanel.hidden = !promptsPanel.hidden;
+  if (!promptsPanel.hidden) { renderPrompts(); board.hidden = true; }
+});
+
+save.addEventListener("click", () => {
+  if (!input.value.trim()) return;
+  addPrompt(input.value);
+  save.textContent = "saved ✓"; save.classList.add("done");
+  setTimeout(() => { save.textContent = "💾 save"; save.classList.remove("done"); }, 1400);
+});
+
+function pick(n) {
+  const pool = [...CATALOG];
+  for (let i = pool.length - 1; i > 0; i--) {        // Fisher–Yates
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, Math.max(1, Math.min(n, pool.length)));
+}
+
+function renderChips() {
+  chips.innerHTML = "";
+  inPlay.forEach(m => {
+    const c = document.createElement("span");
+    c.className = "chip";
+    c.innerHTML = `<i></i>${m.name}`;
+    chips.appendChild(c);
+  });
+}
+
+function roll() {
+  if (!CATALOG.length) return;
+  const n = parseInt($("count").value, 10) || 3;
+  inPlay = pick(n);
+  renderChips();
+}
+
+function autosize() {
+  input.style.height = "auto";
+  input.style.height = Math.min(input.scrollHeight, 220) + "px";
+}
+
+function cardFor(m, idx) {
+  const card = document.createElement("div");
+  card.className = "card";
+  card.style.animationDelay = (idx * 60) + "ms";
+  card.innerHTML = `
+    <div class="card-head">
+      <span class="name">${m.name}</span>
+      <span class="id">${m.id}</span>
+      <span class="grow"></span>
+      <button class="up" disabled>👍 like</button>
+      <button class="copy" disabled>copy</button>
+    </div>
+    <div class="card-body loading"><span class="blk"></span> thinking…</div>`;
+  return card;
+}
+
+function attachUp(btn, model) {
+  let on = false;
+  btn.addEventListener("click", () => {
+    on = !on;
+    btn.classList.toggle("on", on);
+    btn.textContent = on ? "👍 liked" : "👍 like";
+    addVote(model.id, model.name, on ? 1 : -1);
+  });
+}
+
+function attachCopy(btn, getText) {
+  btn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(getText());
+      btn.textContent = "copied ✓";
+      btn.classList.add("done");
+      setTimeout(() => { btn.textContent = "copy"; btn.classList.remove("done"); }, 1400);
+    } catch { btn.textContent = "press ⌘C"; }
+  });
+}
+
+async function run() {
+  const text = input.value.trim();
+  if (!text || !inPlay.length) return;
+
+  empty.style.display = "none";
+  grid.innerHTML = "";
+  send.disabled = true;
+
+  const messages = [{ role: "system", content: SYSTEM }, { role: "user", content: text }];
+
+  inPlay.forEach((m, idx) => {
+    const card = cardFor(m, idx);
+    grid.appendChild(card);
+    const body = card.querySelector(".card-body");
+    const copy = card.querySelector(".copy");
+    const up = card.querySelector(".up");
+
+    fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model: m.id, messages }),
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) throw new Error(data.error);
+        const out = (data.text || "").trim() || "(no response)";
+        body.textContent = out;
+        body.classList.remove("loading");
+        copy.disabled = false;
+        up.disabled = false;
+        attachCopy(copy, () => out);
+        attachUp(up, m);
+      })
+      .catch(err => {
+        body.textContent = "⚠ " + err.message;
+        body.classList.remove("loading");
+        body.classList.add("err");
+      });
+  });
+
+  send.disabled = false;
+}
+
+input.addEventListener("input", () => { autosize(); send.disabled = save.disabled = !input.value.trim(); });
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); run(); }
+});
+send.addEventListener("click", run);
+$("roll").addEventListener("click", roll);
+
+(async function init() {
+  try {
+    const res = await fetch("/api/models");
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    CATALOG = data.models || [];
+    dot.classList.add("live");
+    status.textContent = CATALOG.length + " models live";
+    roll();
+  } catch (err) {
+    status.textContent = "offline — " + err.message;
+  }
+})();
+</script>
+</body>
+</html>

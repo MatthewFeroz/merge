@@ -1,0 +1,12 @@
+# Secrets — never commit your gateway key
+.env
+
+# Python
+__pycache__/
+*.pyc
+
+# Virtual environments
+.venv/
+venv/
+env/
+.venv-test/
