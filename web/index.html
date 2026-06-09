@@ -127,6 +127,12 @@
   }
   .card-body::-webkit-scrollbar-thumb:hover { background:var(--accent-d); background-clip:padding-box; }
   .card-body.err { color:#ff8c7a; }
+  .card-meta {
+    padding:8px 16px; border-top:1px solid var(--border); background:var(--panel-2);
+    color:var(--faint); font-size:11px; display:flex; gap:8px; min-height:30px; align-items:center;
+  }
+  .card-meta .price { color:var(--accent); margin-left:auto; }
+  .cost { color:var(--accent); font-variant-numeric:tabular-nums; }
   .loading { color:var(--muted); }
   .loading .blk { display:inline-block; width:8px; height:14px; background:var(--accent);
                   transform:translateY(2px); animation:blink 1s steps(1) infinite; }
@@ -157,6 +163,17 @@
   .brow .v { width:34px; text-align:right; color:var(--muted); font-size:12px; }
   .board .none { color:var(--faint); font-size:12px; }
 
+  /* ---- api key panel ---- */
+  .keyrow { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .keyrow input {
+    flex:1; min-width:240px; background:var(--panel-2); color:var(--text);
+    border:1px solid var(--border); border-radius:8px; padding:9px 12px; font:inherit; font-size:13px;
+  }
+  .keyrow input:focus { outline:none; border-color:var(--accent-d); }
+  .keynote { margin-top:10px; color:var(--faint); font-size:11.5px; line-height:1.5; }
+  .keynote a { color:var(--muted); }
+  .key-btn.haskey { color:var(--ok); border-color:var(--ok); }
+
   /* ---- saved prompts ---- */
   .prow { display:flex; align-items:flex-start; gap:10px; padding:9px 0; border-top:1px solid var(--border); }
   .prow:first-of-type { border-top:0; }
@@ -179,12 +196,28 @@
     <header>
       <span class="mark"><b>merge</b> model arena<span class="caret"></span></span>
       <span class="spacer"></span>
+      <span class="status cost" id="cost" title="total spend this session">$0.00000</span>
+      <button class="board-btn key-btn" id="keyBtn">🔑 key</button>
       <button class="board-btn" id="promptsBtn">📌 prompts</button>
       <button class="board-btn" id="boardBtn">🏆 board</button>
       <span class="dot" id="dot"></span>
       <span class="status" id="status">connecting…</span>
     </header>
 
+    <div class="board" id="keyPanel" hidden>
+      <h3>merge api key</h3>
+      <div class="keyrow">
+        <input id="keyInput" type="password" autocomplete="off" spellcheck="false"
+               placeholder="paste your Merge API key…" />
+        <button id="keySave">save</button>
+        <button id="keyClear">clear</button>
+      </div>
+      <div class="keynote">
+        Stored only in this browser (localStorage) and sent with each request —
+        the server never saves it. Don't have one? Get a key from your
+        <a href="https://app.merge.dev" target="_blank" rel="noopener">Merge dashboard</a>.
+      </div>
+    </div>
     <div class="board" id="prompts" hidden></div>
     <div class="board" id="board" hidden></div>
 
@@ -192,6 +225,7 @@
       <span class="lbl">models</span>
       <input class="num" id="count" type="number" min="1" max="6" value="3" />
       <button class="roll" id="roll">↻ roll</button>
+      <button id="allFable">🎭 6× Fable 5</button>
       <div class="chips" id="chips"></div>
     </div>
 
@@ -225,12 +259,57 @@ let inPlay = [];           // [{id, name}]
 
 const LB_KEY = "merge.arena.leaderboard";
 let votes = loadVotes();   // { id: {name, votes} }
+let sessionCost = 0;       // running $ spend since page load
+
+function addCost(c) {
+  if (typeof c !== "number") return;
+  sessionCost += c;
+  document.getElementById("cost").textContent = "$" + sessionCost.toFixed(5);
+}
 
 const $ = (id) => document.getElementById(id);
 const dot = $("dot"), status = $("status"), chips = $("chips"),
       input = $("input"), send = $("send"), grid = $("grid"), empty = $("empty"),
       board = $("board"), boardBtn = $("boardBtn"),
-      promptsPanel = $("prompts"), promptsBtn = $("promptsBtn"), save = $("save");
+      promptsPanel = $("prompts"), promptsBtn = $("promptsBtn"), save = $("save"),
+      keyPanel = $("keyPanel"), keyBtn = $("keyBtn"),
+      keyInput = $("keyInput"), keySave = $("keySave"), keyClear = $("keyClear");
+
+/* ---- bring-your-own API key (persisted in localStorage) ---- */
+const KEY_KEY = "merge.arena.apikey";
+let apiKey = localStorage.getItem(KEY_KEY) || "";
+
+function keyHeaders(extra = {}) {
+  return apiKey ? { ...extra, "X-Merge-Key": apiKey } : extra;
+}
+function refreshKeyBtn() {
+  keyBtn.classList.toggle("haskey", !!apiKey);
+  keyBtn.textContent = apiKey ? "🔑 key ✓" : "🔑 key";
+}
+function openKeyPanel() {
+  keyPanel.hidden = false;
+  board.hidden = promptsPanel.hidden = true;
+  keyInput.value = apiKey;
+  keyInput.focus();
+}
+keyBtn.addEventListener("click", () => {
+  if (keyPanel.hidden) openKeyPanel(); else keyPanel.hidden = true;
+});
+keySave.addEventListener("click", () => {
+  apiKey = keyInput.value.trim();
+  if (apiKey) localStorage.setItem(KEY_KEY, apiKey);
+  else localStorage.removeItem(KEY_KEY);
+  refreshKeyBtn();
+  keyPanel.hidden = true;
+  init();   // reconnect with the new key
+});
+keyClear.addEventListener("click", () => {
+  apiKey = ""; keyInput.value = "";
+  localStorage.removeItem(KEY_KEY);
+  refreshKeyBtn();
+  init();
+});
+keyInput.addEventListener("keydown", (e) => { if (e.key === "Enter") keySave.click(); });
 
 /* ---- leaderboard (persisted in localStorage) ---- */
 function loadVotes() {
@@ -272,7 +351,7 @@ function renderBoard() {
 
 boardBtn.addEventListener("click", () => {
   board.hidden = !board.hidden;
-  if (!board.hidden) { renderBoard(); promptsPanel.hidden = true; }
+  if (!board.hidden) { renderBoard(); promptsPanel.hidden = keyPanel.hidden = true; }
 });
 
 /* ---- saved prompts (persisted in localStorage) ---- */
@@ -327,7 +406,7 @@ function renderPrompts() {
 
 promptsBtn.addEventListener("click", () => {
   promptsPanel.hidden = !promptsPanel.hidden;
-  if (!promptsPanel.hidden) { renderPrompts(); board.hidden = true; }
+  if (!promptsPanel.hidden) { renderPrompts(); board.hidden = keyPanel.hidden = true; }
 });
 
 save.addEventListener("click", () => {
@@ -380,7 +459,8 @@ function cardFor(m, idx) {
       <button class="up" disabled>👍 like</button>
       <button class="copy" disabled>copy</button>
     </div>
-    <div class="card-body loading"><span class="blk"></span> thinking…</div>`;
+    <div class="card-body loading"><span class="blk"></span> thinking…</div>
+    <div class="card-meta"></div>`;
   return card;
 }
 
@@ -421,14 +501,16 @@ async function run() {
     const body = card.querySelector(".card-body");
     const copy = card.querySelector(".copy");
     const up = card.querySelector(".up");
+    const meta = card.querySelector(".card-meta");
 
     fetch("/api/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: keyHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ model: m.id, messages }),
     })
       .then(r => r.json())
       .then(data => {
+        if (data.need_key) { openKeyPanel(); throw new Error(data.error); }
         if (data.error) throw new Error(data.error);
         const out = (data.text || "").trim() || "(no response)";
         body.textContent = out;
@@ -437,6 +519,11 @@ async function run() {
         up.disabled = false;
         attachCopy(copy, () => out);
         attachUp(up, m);
+        const u = data.usage || {};
+        const priced = typeof data.cost === "number"
+          ? `<span class="price">$${data.cost.toFixed(5)}</span>` : "";
+        meta.innerHTML = `${u.input_tokens ?? "?"} in · ${u.output_tokens ?? "?"} out${priced}`;
+        addCost(data.cost);
       })
       .catch(err => {
         body.textContent = "⚠ " + err.message;
@@ -455,10 +542,25 @@ input.addEventListener("keydown", (e) => {
 send.addEventListener("click", run);
 $("roll").addEventListener("click", roll);
 
-(async function init() {
+const FABLE_ID = "anthropic/claude-fable-5";
+$("allFable").addEventListener("click", () => {
+  const f = CATALOG.find(m => m.id === FABLE_ID);
+  if (!f) { status.textContent = "Fable 5 not in catalog — restart the server"; return; }
+  inPlay = Array.from({ length: 6 }, () => f);   // same model six times -> six variations
+  renderChips();
+});
+
+async function init() {
+  dot.classList.remove("live");
+  status.textContent = "connecting…";
   try {
-    const res = await fetch("/api/models");
+    const res = await fetch("/api/models", { headers: keyHeaders() });
     const data = await res.json();
+    if (data.need_key) {
+      status.textContent = "add your Merge API key to start →";
+      openKeyPanel();
+      return;
+    }
     if (data.error) throw new Error(data.error);
     CATALOG = data.models || [];
     dot.classList.add("live");
@@ -467,7 +569,10 @@ $("roll").addEventListener("click", roll);
   } catch (err) {
     status.textContent = "offline — " + err.message;
   }
-})();
+}
+
+refreshKeyBtn();
+init();
 </script>
 </body>
 </html>

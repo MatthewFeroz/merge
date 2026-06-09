@@ -20,6 +20,34 @@ python .\server.py                        # -> http://127.0.0.1:8000
 
 The key stays server-side; the browser only talks to the local server.
 
+You can also start the server with **no key at all** — visitors then paste their
+own Merge API key via the 🔑 button in the header. The key is kept in the
+browser's localStorage and sent with each request; the server never stores it.
+This is the mode to use for a public deployment, so strangers can't spend your
+credits.
+
+### Deploy to the internet
+
+The repo ships with a `Dockerfile` and a `render.yaml`, so any of these work:
+
+**Render (easiest, free tier):**
+
+1. Push this repo to GitHub.
+2. On [render.com](https://render.com) choose **New → Blueprint** and point it
+   at the repo — `render.yaml` configures everything, including a health check.
+3. Don't set `MERGE_API_KEY` for a public instance (visitors bring their own
+   key). Set it as a secret env var only for a private/team deployment.
+
+**Railway / Fly.io / anything that runs Docker:**
+
+```bash
+docker build -t merge-arena .
+docker run -p 8000:8000 merge-arena
+```
+
+The server reads `PORT` (standard on these platforms) and binds `0.0.0.0`
+automatically when it's set.
+
 ### CLI
 
 Set your API key:

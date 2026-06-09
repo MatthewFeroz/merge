@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: merge-model-arena
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python server.py
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.4
+      # Leave MERGE_API_KEY unset for a public deploy: visitors paste their own
+      # key in the UI (🔑 button) and your account is never billed.
+      # For a private/team deploy, add MERGE_API_KEY as a secret here instead.
